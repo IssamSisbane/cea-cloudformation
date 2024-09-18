@@ -1,0 +1,10 @@
+# CloudFormationTemplateVersion
+# Description
+
+AWSTemplateFormatVersion: "2010-09-09" # Supported version of the template
+Description: "CloudFormation template to create an S3 bucket" # What this template does
+Resources: # Resources to be created
+  S3Bucket: # Logical name of the resource must be unique within the template
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: "my-issam-s3-bucket-yaml" # globaly unique name across AWS S3 buckets
