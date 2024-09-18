@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template to create a VPC
+
+Resources:
+  # MyVPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.16.0.0/16 # IP range for the VPC
+      EnableDnsSupport: true # Allow how resources in the vpc to commnicate with the amazon dns servers
+      EnableDnsHostnames: true # Allow how resources in the vpc to receive dns hostnames
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  # Public Subnet in Availability Zone 1
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC # Reference to the VPC created above
+      CidrBlock: 172.16.1.0/24 # IP range for the subnet
+      AvailabilityZone: !Select [0, !GetAZs ] # Get the first availability zone in the region
+      MapPublicIpOnLaunch: true # Enable auto-assign public IP addresses to instances in the subnet
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1A
+
+  # Application Private Subnet in Availability Zone 1
+  AppPrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: AppPrivateSubnet1A
+
+  # Database Private Subnet in Availability Zone 1
+  DatabasePrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: DatabasePrivateSubnet1A
+
+  # Public Subnet in Availability Zone 2
+  PublicSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2B
+
+  # Application Private Subnet in Availability Zone 2
+  AppPrivateSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.5.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: AppPrivateSubnet2B
+
+  # Database Private Subnet in Availability Zone 2
+  DatabasePrivateSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.6.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: DatabasePrivateSubnet2B
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyVPC-IGW
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  # Public Route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Public subnet association with route table
+  PublicSubnet1ARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1A
+      RouteTableId: !Ref PublicRouteTable
+
+  # Bastion Host EC2
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro # Instance type of our EC2 instance
+      ImageId: ami-0cb0b94275d5b4aec # Amazon machine image ID, a template that contains the software configuration (OS). A blue print for our EC2 instance. An image that provides the software that is required to set up and boot an Amazon EC2 instanc
+      KeyName: bastion # Key pair name to connect to the instance
+      SubnetId: !Ref PublicSubnet1A
+      SecurityGroupIds:
+        - !Ref BastionSG
+      Tags:
+        - Key: Name
+          Value: BastionHost
+
+  # Bastion Security Group
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp: 89.84.22.189/32 # Your IP address
+
+  # AppInstance1A
+  AppInstance1A:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0cb0b94275d5b4aec
+      KeyName: bastion
+      SubnetId: !Ref AppPrivateSubnet1A
+      SecurityGroupIds:
+        - !Ref AppInstance1ASG
+      Tags:
+        - Key: Name
+          Value: AppInstance1A
+
+  # AppInstance2B
+  AppInstance2B: # We don't need a key pair for this instance because we will connect to it through the bastion host
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0cb0b94275d5b4aec
+      SubnetId: !Ref AppPrivateSubnet2B
+      SecurityGroupIds:
+        - !Ref AppInstance2BSG
+      Tags:
+        - Key: Name
+          Value: AppInstance2B
+
+  # AppInstance1A Security Group
+  AppInstance1ASG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow SSH from Bastion"
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionSG
+
+  # AppInstance2B Security Group
+  AppInstance2BSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow ICMP Ping from AppInstance1A"
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1 # ICMP doesn't have ports
+          ToPort: -1 # ICMP doesn't have ports
+          SourceSecurityGroupId: !Ref AppInstance1ASG # We reference the security group instead of the IP address because the IP address of the instance can change so it's more flexible
