@@ -6,4 +6,4 @@ This project aims to deploy the architecture describes in another project right 
 
 I could deploy all the resources presents in the template with clickOps in a first time and then rebuild everything using IaC.
 
-It was pretty fun to do and I saw how IaC can make easier the job to deploy and debug things as everything is stated in the template.
+It was pretty fun to do and I saw how IaC can make easier the job to deploy and debug things as everything is stated in the templates.
