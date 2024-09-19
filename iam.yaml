@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "IAM CloudFormation template"
+
+Resources:
+  # MyIAMUser
+  MyIAMUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: IssamCFN
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  # MyIAMGroup
+  MyIAMGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: IssamCFNGroup
+
+  # UserToGroup Association
+  UserToGroup:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref MyIAMGroup
+      Users:
+        - !Ref MyIAMUser
+
+  # MyIAM Role for ec2
+  MyIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: IssamCFNRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: # What actions are allowed or denied
+          - Effect: "Allow" # Allow the ec2 service to assume this role
+            Principal: #the entity we want to assume this role (service, user, group)
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns: # Policies that are attached to the role
+        - arn:aws:iam::aws:policy/PowerUserAccess
+
+  # S3 Custom policy
+  MyS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: IssamS3Policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "s3:GetObject"
+            Resource: "*" # Allow access to all s3 buckets. Best practice is to specify the bucket name
+      Roles:
+        - !Ref MyIAMRole
+
+  # Add the role to the user
