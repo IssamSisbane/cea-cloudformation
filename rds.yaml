@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template to create an RDS instance
+
+Resources:
+  # MyDB
+  MyDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: MyNewRDS
+      MasterUsername: admin # in prodcution we would use KMS to encrypt this
+      MasterUserPassword: password # in prodcution we would use KMS to encrypt this
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: 8.0.35
+      AllocatedStorage: 20
+      BackupRetentionPeriod: 7
