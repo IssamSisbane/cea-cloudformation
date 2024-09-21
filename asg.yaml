@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template an Auto Scaling Group
+
+Resources:
+  # MyVPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.16.0.0/16 # IP range for the VPC
+      EnableDnsSupport: true # Allow how resources in the vpc to commnicate with the amazon dns servers
+      EnableDnsHostnames: true # Allow how resources in the vpc to receive dns hostnames
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  # Public Subnet in Availability Zone 1
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC # Reference to the VPC created above
+      CidrBlock: 172.16.1.0/24 # IP range for the subnet
+      AvailabilityZone: !Select [0, !GetAZs ] # Get the first availability zone in the region
+      MapPublicIpOnLaunch: true # Enable auto-assign public IP addresses to instances in the subnet
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1A
+
+  # Application Private Subnet in Availability Zone 1
+  AppPrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: AppPrivateSubnet1A
+
+  # Database Private Subnet in Availability Zone 1
+  DatabasePrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: DatabasePrivateSubnet1A
+
+  # Public Subnet in Availability Zone 2
+  PublicSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2B
+
+  # Application Private Subnet in Availability Zone 2
+  AppPrivateSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.5.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: AppPrivateSubnet2B
+
+  # Database Private Subnet in Availability Zone 2
+  DatabasePrivateSubnet2B:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 172.16.6.0/24
+      AvailabilityZone: !Select [1, !GetAZs ]
+      Tags:
+        - Key: Name
+          Value: DatabasePrivateSubnet2B
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyVPC-IGW
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  # Public Route
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Public subnet association with route table
+  PublicSubnet1ARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1A
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2BRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2B
+      RouteTableId: !Ref PublicRouteTable
+
+  # WebServerSecurityGroup / ALB Security Group
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  # # Launch configuration | DEPRECATED
+  # MyLaunchConfiguration: # Th ec2 instance is now part of the launch configuration
+  #   Type: AWS::AutoScaling::LaunchConfiguration
+  #   Properties:
+  #     ImageId: ami-0cb0b94275d5b4aec
+  #     InstanceType: t2.micro
+  #     SecurityGroups:
+  #       - !Ref WebServerSecurityGroup
+  #     UserData:
+  #       Fn::Base64: !Sub |
+  #         #!/bin/bash
+  #         yum install -y httpd
+  #         systemctl start httpd
+  #         systemctl enable httpd
+  #         echo Hello from Auto Scaling Instance > /var/www/html/index.html
+
+  # # Auto Scaling Group
+  # MyAutoScalingGroup:
+  #   Type: AWS::AutoScaling::AutoScalingGroup
+  #   Properties:
+  #     LaunchConfigurationName: !Ref MyLaunchConfiguration
+  #     MinSize: 1
+  #     MaxSize: 3
+  #     DesiredCapacity: 2
+  #     VPCZoneIdentifier:
+  #       - !Ref PublicSubnet1A
+  #       - !Ref PublicSubnet2B
+
+  MyLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: ami-0cb0b94275d5b4aec
+        InstanceType: t2.micro
+        SecurityGroupIds:
+          - !Ref WebServerSecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum install -y httpd
+            systemctl start httpd
+            systemctl enable httpd
+            echo Hello from Auto Scaling Instance > /var/www/html/index.html
+
+  # Auto Scaling Group
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1A
+        - !Ref PublicSubnet2B
+
+  # Cloud Watch Alarm
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when CPU exceeds 70%
+      MetricName: CPUUtilization # The metric to monitor
+      Namespace: AWS/EC2 # The namespace for the alarm's associated metric
+      Statistic: Average # The statistic to apply to the alarm's associated metric
+      Period: 300 # The period in seconds over which the specified statistic is applied
+      EvaluationPeriods: 1 # The number of periods over which data is compared to the specified threshold
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref MyAutoScalingGroup
+      AlarmActions: # Action triggered when the alarm is in the ALARM state
+        - !Ref ScaleOutPolicy
+
+  # Scale Out Policy
+  ScaleOutPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref MyAutoScalingGroup
+      PolicyType: SimpleScaling # The policy type. SimpleScaling means that the policy adjusts the scaling by an absolute number of instances
+      Cooldown: 300 # The amount of time, in seconds, after a previous scaling activity completes before another can begin
+      ScalingAdjustment: 1 # The number of instances by which to scale, when the adjustment type is set to ChangeInCapacity
