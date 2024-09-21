@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template to create a static website in an S3 bucket
+
+Resources:
+  # MyS3Bucket
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-static-website-is
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: false
+
+  # MyS3BucketPolicy
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MyS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*" # allow anyone to access the bucket
+            Action: s3:GetObject
+            Resource: !Sub arn:aws:s3:::${MyS3Bucket}/*
